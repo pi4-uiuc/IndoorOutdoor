@@ -1,9 +1,9 @@
 # IndoorOutdoor
 Comparing plants grown indoors and outdoors
 ## Team Members
-* Emily Shinkle ()
+* Emily Shinkle (emilyss2@illinois.edu)
 * Sravani Vadali (vvadali2@illinois.edu)
-* Yuji Yuan ()
+* Yuji Yang (yujiy2@illinois.edu)
 * Ran Ji (ranj2@illinois.edu)
 ## Questions
 * Are different genotypes affected by their environment (indoor vs outdoor) different?
