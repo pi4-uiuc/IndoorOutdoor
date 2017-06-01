@@ -1,0 +1,72 @@
+---
+title: "Importing & Exporting Tables"
+author: "Ran Ji"
+date: "5/30/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading BetyDB into environment and joining to make main table
+```{r db-connection}
+library(dplyr)
+
+bety_src <- src_postgres(dbname = "bety", 
+                password = 'bety', 
+                host = 'terra-bety.default', 
+                user = 'bety', 
+                port = 5432)
+
+original_traits <- tbl(bety_src, 'traits') %>%
+  mutate (traits_id = id)
+
+original_variables <- tbl(bety_src, 'variables') %>%
+  mutate(variable_id = id, variable_name = name)
+
+traits <- tbl(bety_src, 'traits', n = Inf) %>%
+  mutate (traits_id = id) %>%
+  select (traits_id, site_id, specie_id, cultivar_id, date, mean, variable_id, method_id, treatment_id, entity_id)
+
+variables <- tbl(bety_src, 'variables', n = Inf) %>%
+  mutate(variable_id = id, variable_name = name) %>%
+  select(variable_id, variable_name, description, units)
+
+variables_local <- tbl(bety_src, 'variables', n = Inf) %>%
+  mutate(variable_id = id, variable_name = name) %>%
+  select(variable_id, variable_name, description, units) %>%
+  collect()
+
+cultivars <- tbl(bety_src, 'cultivars', n = Inf) %>%
+  mutate(cultivar_id = id, cultivar = name) %>%
+  select(cultivar_id, cultivar)
+
+entities <- tbl(bety_src, 'entities', n = Inf) %>%
+  mutate(entity_name = name, entity_id = id) %>%
+  select(entity_name, entity_id)
+
+sites <- tbl(bety_src, 'sites', n = Inf) %>%
+  mutate(site_id = id) %>%
+  select(site_id, city, state, country, notes, sitename)
+
+treatments <- tbl(bety_src, 'treatments', n = Inf) %>%
+  mutate(treatment_id = id, treatment_definition = definition, treatment_name = name) %>%
+  select(treatment_id, treatment_name, treatment_definition) 
+
+joined_table <- traits %>%
+  left_join(variables, by = 'variable_id') %>%
+  left_join(cultivars, by = 'cultivar_id') %>%
+  left_join(entities, by = 'entity_id') %>%
+  left_join(sites, by = 'site_id') %>%
+  left_join(treatments, by = 'treatment_id') %>%
+  select(traits_id, date, mean, variable_name, sitename, treatment_name)
+```
+
+##Taking subset of joined_table containing variables that we care about
+```{r variable-tables}
+filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_cover", "canopy_height", "perimeter", "aboveground_dry_biomass", "leaf_length", "leaf_width", "plant_height", "aboveground_fresh_biomass", "growth_respiration_coefficient", "germination_score", "stem_diameter", "emergence_count")) %>%
+  collect(n = Inf)
+
+write.csv(filtered_table, file='./data/filtered_table.csv')
+```
