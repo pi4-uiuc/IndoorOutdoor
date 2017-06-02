@@ -67,6 +67,4 @@ joined_table <- traits %>%
 ```{r variable-tables}
 filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_cover", "canopy_height", "perimeter", "aboveground_dry_biomass", "leaf_length", "leaf_width", "plant_height", "aboveground_fresh_biomass", "growth_respiration_coefficient", "germination_score", "stem_diameter", "emergence_count")) %>%
   collect(n = Inf)
-
-write.csv(filtered_table, file='./data/filtered_table.csv')
 ```
