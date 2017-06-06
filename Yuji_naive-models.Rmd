@@ -1,0 +1,62 @@
+---
+title: "2-getting data ready for analysis"
+author: "Yuji Yang"
+date: "6/5/2017"
+output: html_document
+---
+
+```{r}
+library(stringr)
+
+Indoors_Height <- filtered_table %>%
+          filter(str_detect(sitename, "Danforth")) %>%
+          filter(str_detect(variable_name, "height"))
+Outdoors_Height <- filtered_table %>%
+          filter(str_detect(sitename, "Field")) %>%
+          filter(str_detect(variable_name, "canopy_height"))
+
+count(group_by(Indoors_Height, treatment_name))
+count(group_by(Outdoors_Height, treatment_name))
+
+count(group_by(Indoors_Height, date))
+count(group_by(Outdoors_Height, date))
+
+```
+## Adjusting data
+```{r}
+Outdoors_Height <- na.omit(Outdoors_Height)  ## remove NA
+
+Indoors_Height$date <- as.numeric(Indoors_Height$date)-1401818576
+Outdoors_Height$date <- as.numeric(Outdoors_Height$date)-1464678000
+Outdoors_Height$date[Outdoors_Height$date > 7336000] <- Outdoors_Height$date[Outdoors_Height$date > 7336000]-7336800
+```
+
+```{r}
+plot(as.numeric(Indoors_Height$date), Indoors_Height$mean, col = as.numeric(substr(Indoors_Height$treatment_name,1,2))/10)
+
+mIn <- lm(mean ~ as.numeric(date)*treatment_name, Indoors_Height)
+summary(mIn)
+
+plot(as.numeric(Outdoors_Height$date), Outdoors_Height$mean)
+
+
+
+mOut <- lm(mean ~ date, data = Outdoors_Height)
+summary(mOut)
+
+library(ggplot2)
+```
+
+### Put together
+```{r}
+Whole_table <- rbind(Indoors_Height, Outdoors_Height)[,c(1,2,3,5,6)]
+Whole_table$sitename[str_detect(Whole_table$sitename, 'Danforth')] <-"Indoor"
+Whole_table$sitename[str_detect(Whole_table$sitename, 'Field')] <-"Outdoor"
+
+count(group_by(Whole_table, date))
+
+mWhole <- lm(mean ~ date*as.factor(sitename), data = Whole_table)
+summary(mWhole)
+plot(Whole_table$date, Whole_table$mean, col = str_detect(Whole_table$sitename, "O")+1)
+```
+
