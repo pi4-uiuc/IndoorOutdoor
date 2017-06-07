@@ -15,11 +15,11 @@ bety_src <- src_postgres(dbname = "bety",
                 user = 'bety', 
                 port = 5432)
 
-#To see all available columns in traits table
+# to see all available columns in traits table
 original_traits <- tbl(bety_src, 'traits') %>%
   collect(n=1)
 
-#local version of variables for reference
+# local version of variables for reference
 variables_local <- tbl(bety_src, 'variables', n = Inf) %>%
   mutate(variable_id = id, variable_name = name) %>%
   dplyr::select(variable_id, variable_name, description, units) %>%
@@ -49,6 +49,13 @@ treatments <- tbl(bety_src, 'treatments', n = Inf) %>%
   mutate(treatment_id = id, treatment_definition = definition, treatment_name = name) %>%
   dplyr::select(treatment_id, treatment_name, treatment_definition) 
 
+# looking for when each season began
+experiments <- tbl(bety_src, 'experiments', n = Inf) %>%
+  #mutate(treatment_id = id, treatment_definition = definition, treatment_name = name) %>%
+  #dplyr::select(treatment_id, treatment_name, treatment_definition) 
+  collect(n = Inf)
+
+# join relevant tables together
 joined_table <- traits %>%
   left_join(variables, by = 'variable_id') %>%
   left_join(cultivars, by = 'cultivar_id') %>%
@@ -60,16 +67,28 @@ joined_table <- traits %>%
 
 ## Cleaning Up Table
 ```{r variable-tables}
-filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_cover", "canopy_height", "perimeter", "leaf_length", "leaf_width", "plant_height",  "emergence_count")) %>%
+library(lubridate)
+
+# filter table for measurements that we care about
+filtered_table <- filter(joined_table, variable_name %in% c("canopy_height", "plant_height")) %>%
   collect(n = Inf)
 
-#Define variable indoor_outdoor based on sitename
+# filter table for rows without date
+filtered_table <- filtered_table[is.na(filtered_table$date)]
+
+# define variable indoor_outdoor based on sitename
 filtered_table$indoor_outdoor <- ifelse(filtered_table$sitename == 'Danforth Plant Science Center Bellweather Phenotyping Facility', 'Indoor', 'Outdoor')
 
-#Define new variable Date that is a date type
+# define new variable Date that is a date type
 filtered_table$Date <- as.Date(substr(filtered_table$date, 0, 10), format = "%Y-%m-%d")
 
-#Look at which sites have which variables and cultivars
+# define new variable season based on which season the data was taken
+filtered_table$season <- if_else(filtered_table$Date %within% interval(as.POSIXct("2014-01-01"), as.POSIXct("2014-12-31")), "Summer 2014", if_else(filtered_table$Date %within% interval(as.POSIXct("2016-01-01"), as.POSIXct("2016-08-01")), "Summer 2016", if_else(filtered_table$Date %within% interval(as.POSIXct("2016-08-15"), as.POSIXct("2016-12-31")), "Fall 2016", "N/A")))
+
+# define new variable age based on when the season began
+filtered_table$age <- if_else( , , ifelse(, , ))
+
+# look at which sites have which variables and cultivars
 site_variable <- filtered_table %>%
   group_by(indoor_outdoor, variable_name, cultivar) %>%
   summarize(n = n()) %>%
@@ -77,15 +96,17 @@ site_variable <- filtered_table %>%
 
 outdoor_cultivar <- filter(site_variable, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')) %>%
   collect(n = Inf)
+
 ```
 
 ## Plotting
 ```{r plotting-height-vs-date}
 library(ggplot2)
 library(gridExtra)
-#Plotting the three types of heights against Date
 
-#Indoor variables
+# plotting the three types of heights against Date
+
+# indoor variables
 
 indoor_plant_height <- filter(filtered_table, variable_name == 'plant_height')
 
@@ -104,7 +125,7 @@ ggplot(indoor_perimeter, aes(x = Date, y = mean)) +
   geom_point(aes(color = treatment_name)) +
   ylab("Perimeter (Indoor)")
 
-#Outdoor variables
+# outdoor variables
 
 outdoor_canopy_height <- filter(filtered_table, variable_name == 'canopy_height')
 
@@ -120,7 +141,7 @@ ggplot(outdoor_canopy_height, aes(x = Date, y = mean)) +
   geom_point(aes(size = 0.1)) +
   ylab("Canopy Cover (Outdoor)")
 
-#Outdoor and Indoor - Shared Cultivars
+# outdoor and Indoor - Shared Cultivars
 indoor_cultivar <- ggplot(indoor_plant_height, aes(x = Date, y = mean)) +
   geom_point(aes(color = cultivar)) +
   facet_wrap(~cultivar) +
