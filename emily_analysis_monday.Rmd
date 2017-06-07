@@ -133,34 +133,57 @@ length(unique(joined_table$date[grepl('Season 1', joined_table$sitename)]))
 length(unique(joined_table$date[grepl('Season 1', joined_table$sitename)]))
 ```
 
-##  Linear Regression!
+##  Sorting by season and adding date columns
 ```{r}
 library(lubridate)
 
-indoor_table_plant_height <- indoor_table[indoor_table$variable_name == 'plant_height',]
-outdoor_table_canopy_height_summer <- outdoor_table[outdoor_table$variable_name == 'canopy_height' & outdoor_table$date %within% interval(as.POSIXct("2016-01-01 01:00:00"), as.POSIXct("2016-08-01 01:00:00")), ]
-outdoor_table_canopy_height_fall <- outdoor_table[outdoor_table$variable_name == 'canopy_height' & outdoor_table$date %within% interval(as.POSIXct("2016-08-01 01:00:00"), as.POSIXct("2016-12-01 01:00:00")), ]
+indoor_table_plant_height <- indoor_table[indoor_table$variable_name == 'plant_height' & !is.na(indoor_table$date),]
 
+##change units of plant_height from mm to cm
+indoor_table_plant_height$mean = indoor_table_plant_height$mean *.1
 
+indoor_start_date <- as.POSIXct("2014-05-27 12:00:00")
+for (i in 1:length(indoor_table_plant_height$date)){
+  indoor_table_plant_height$age[i] <- as.numeric(as.POSIXct(indoor_table_plant_height$date[i]) - indoor_start_date)
+}
+
+outdoor_table_canopy_height_summer <- outdoor_table[outdoor_table$variable_name == 'canopy_height' & outdoor_table$date %within% interval(as.POSIXct("2016-01-01 01:00:00"), as.POSIXct("2016-08-01 01:00:00")) & !is.na(outdoor_table$date), ]
+
+outdoorsummer_start_date <- as.POSIXct("2016-04-19 12:00:00")
+for (i in 1:length(outdoor_table_canopy_height_summer$date)){
+  outdoor_table_canopy_height_summer$age[i] <- as.numeric(as.POSIXct(outdoor_table_canopy_height_summer$date[i]) - outdoorsummer_start_date)
+}
+
+outdoor_table_canopy_height_fall <- outdoor_table[outdoor_table$variable_name == 'canopy_height' & outdoor_table$date %within% interval(as.POSIXct("2016-08-01 01:00:00"), as.POSIXct("2016-12-01 01:00:00")) & !is.na(outdoor_table$date), ]
+
+outdoorfall_start_date <- as.POSIXct("2016-08-03 12:00:00")
+for (i in 1:length(outdoor_table_canopy_height_fall$date)){
+  outdoor_table_canopy_height_fall$age[i] <- as.numeric(as.POSIXct(outdoor_table_canopy_height_fall$date[i]) - outdoorfall_start_date)
+}
+
+```
+
+## Linear Regression!
+```{r}
 plot(x=outdoor_table_canopy_height_summer$date, y=outdoor_table_canopy_height_summer$mean, type = 'p')
 plot(x=outdoor_table_canopy_height_fall$date, y=outdoor_table_canopy_height_fall$mean, type = 'p')
 
-indoor_growthmodel <- lm(mean ~ date, data = indoor_table_plant_height)
+indoor_growthmodel <- lm(mean ~ age, data = indoor_table_plant_height)
 summary(indoor_growthmodel)
 
-outdoorsummer_growthmodel <- lm(mean ~ date, data = outdoor_table_canopy_height_summer)
+outdoorsummer_growthmodel <- lm(mean ~ age, data = outdoor_table_canopy_height_summer)
 summary(outdoorsummer_growthmodel)
 
-outdoorfall_growthmodel <- lm(mean ~ date, data = outdoor_table_canopy_height_fall)
+outdoorfall_growthmodel <- lm(mean ~ age, data = outdoor_table_canopy_height_fall)
 summary(outdoorfall_growthmodel)
 
-plot(x=indoor_table_plant_height$date, y=indoor_table_plant_height$mean, type = 'p')  
+plot(x=indoor_table_plant_height$age, y=indoor_table_plant_height$mean, type = 'p')  
 abline(indoor_growthmodel)
 
-plot(x=outdoor_table_canopy_height_summer$date, y=outdoor_table_canopy_height_summer$mean, type = 'p')  
+plot(x=outdoor_table_canopy_height_summer$age, y=outdoor_table_canopy_height_summer$mean, type = 'p')  
 abline(outdoorsummer_growthmodel)
 
-plot(x=outdoor_table_canopy_height_fall$date, y=outdoor_table_canopy_height_fall$mean, type = 'p')  
+plot(x=outdoor_table_canopy_height_fall$age, y=outdoor_table_canopy_height_fall$mean, type = 'p')  
 abline(outdoorfall_growthmodel)
 
 
