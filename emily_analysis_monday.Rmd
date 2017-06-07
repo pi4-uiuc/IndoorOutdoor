@@ -60,30 +60,33 @@ joined_table <- traits %>%
   left_join(entities, by = 'entity_id') %>%
   left_join(sites, by = 'site_id') %>%
   left_join(treatments, by = 'treatment_id') %>%
-  select(traits_id, date, mean, variable_name, sitename, treatment_name) %>%
+  select(traits_id, date, mean, variable_name, sitename, treatment_name, cultivar) %>%
   collect(n=Inf)
+
+sum(is.na(joined_table$cultivar))
+sum(!is.na(joined_table$cultivar))
 ```
 
-##Taking subset of joined_table containing variables that we care about
+## Taking subset of joined_table containing variables that we care about
 ```{r variable-tables}
 filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_cover", "canopy_height", "perimeter", "aboveground_dry_biomass", "leaf_length", "leaf_width", "plant_height", "aboveground_fresh_biomass", "growth_respiration_coefficient", "germination_score", "stem_diameter", "emergence_count", "cultivar")) %>%
   collect(n = Inf)
 ```
 
-##Indoor and outdoor tables
+## Indoor and outdoor tables
 ```{r}
 indoor_table <- joined_table[grepl("Danforth", joined_table$sitename), ]
 outdoor_table <- joined_table[grepl("MAC", joined_table$sitename), ]
 ```
 
-##Compare Means
+## Compare Means
 ```{r}
 mean(outdoor_table$mean[outdoor_table$variable_name == "height"])
 mean(outdoor_table$mean[outdoor_table$variable_name == "canopy_height"])
 mean(indoor_table$mean[indoor_table$variable_name == "plant_height"])
 ```
 
-##Histograms
+## Histograms
 ```{r}
 hist(outdoor_table$mean[outdoor_table$variable_name == "height"])
 hist(indoor_table$mean[indoor_table$variable_name == "plant_height"]/100)
@@ -92,16 +95,76 @@ plot(outdoor_table$date[outdoor_table$variable_name == "height"],outdoor_table$m
 plot(outdoor_table$date[outdoor_table$variable_name == "canopy_height"],outdoor_table$mean[outdoor_table$variable_name == "canopy_height"])
 ```
 
-##Summary to find dates
+## Summary to find dates
 ```{r}
 summary(indoor_table$date[indoor_table$variable_name == "plant_height"])
 summary(outdoor_table$date[outdoor_table$variable_name == "height"])
 summary(outdoor_table$date[outdoor_table$variable_name == "canopy_height"])
 ```
 
-##Filtering out 2017 data
+## Filtering out 2017 data
 ```{r}
 year_2017 <- joined_table[grepl(2017, joined_table$date), ]
 unique(year_2017$variable_name)
 ```
+
+## Filtering out and exploring data with nonempty cultivar
+```{r}
+cultivar_available <- joined_table[!is.na(joined_table$cultivar), ]
+
+unique(cultivar_available$sitename)
+unique(joined_table$sitename)
+
+length(unique(cultivar_available$sitename))
+length(unique(joined_table$sitename))
+
+cultivar_sites <- unique(cultivar_available$sitename)
+all_sites <- unique(joined_table$sitename)
+
+setdiff(all_sites, cultivar_sites)
+```
+
+## What are Season 1 and 2?
+```{r}
+range(joined_table$date[grepl('Season 1', joined_table$sitename) & !is.na(joined_table$date)])
+range(joined_table$date[grepl('Season 2', joined_table$sitename)])
+length(unique(joined_table$sitename[grepl('Season 1', joined_table$sitename)]))
+length(unique(joined_table$date[grepl('Season 1', joined_table$sitename)]))
+length(unique(joined_table$date[grepl('Season 1', joined_table$sitename)]))
+```
+
+##  Linear Regression!
+```{r}
+library(lubridate)
+
+indoor_table_plant_height <- indoor_table[indoor_table$variable_name == 'plant_height',]
+outdoor_table_canopy_height_summer <- outdoor_table[outdoor_table$variable_name == 'canopy_height' & outdoor_table$date %within% interval(as.POSIXct("2016-01-01 01:00:00"), as.POSIXct("2016-08-01 01:00:00")), ]
+outdoor_table_canopy_height_fall <- outdoor_table[outdoor_table$variable_name == 'canopy_height' & outdoor_table$date %within% interval(as.POSIXct("2016-08-01 01:00:00"), as.POSIXct("2016-12-01 01:00:00")), ]
+
+
+plot(x=outdoor_table_canopy_height_summer$date, y=outdoor_table_canopy_height_summer$mean, type = 'p')
+plot(x=outdoor_table_canopy_height_fall$date, y=outdoor_table_canopy_height_fall$mean, type = 'p')
+
+indoor_growthmodel <- lm(mean ~ date, data = indoor_table_plant_height)
+summary(indoor_growthmodel)
+
+outdoorsummer_growthmodel <- lm(mean ~ date, data = outdoor_table_canopy_height_summer)
+summary(outdoorsummer_growthmodel)
+
+outdoorfall_growthmodel <- lm(mean ~ date, data = outdoor_table_canopy_height_fall)
+summary(outdoorfall_growthmodel)
+
+plot(x=indoor_table_plant_height$date, y=indoor_table_plant_height$mean, type = 'p')  
+abline(indoor_growthmodel)
+
+plot(x=outdoor_table_canopy_height_summer$date, y=outdoor_table_canopy_height_summer$mean, type = 'p')  
+abline(outdoorsummer_growthmodel)
+
+plot(x=outdoor_table_canopy_height_fall$date, y=outdoor_table_canopy_height_fall$mean, type = 'p')  
+abline(outdoorfall_growthmodel)
+
+
+```
+
+
 
