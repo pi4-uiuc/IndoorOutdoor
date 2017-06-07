@@ -1,0 +1,237 @@
+---
+title: "Importing & Exporting Tables"
+author: "Sravani Vadali"
+date: "5/30/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading BetyDB into environment and joining to make main table
+```{r db-connection}
+library(dplyr)
+
+bety_src <- src_postgres(dbname = "bety", 
+                password = 'bety', 
+                host = 'terra-bety.default', 
+                user = 'bety', 
+                port = 5432)
+
+original_traits <- tbl(bety_src, 'traits') %>%
+  mutate (traits_id = id)
+
+original_variables <- tbl(bety_src, 'variables') %>%
+  mutate(variable_id = id, variable_name = name)
+
+traits <- tbl(bety_src, 'traits', n = Inf) %>%
+  mutate (traits_id = id) %>%
+  select (traits_id, site_id, specie_id, cultivar_id, date, mean, variable_id, method_id, treatment_id, entity_id)
+
+variables <- tbl(bety_src, 'variables', n = Inf) %>%
+  mutate(variable_id = id, variable_name = name) %>%
+  select(variable_id, variable_name, description, units)
+
+variables_local <- tbl(bety_src, 'variables', n = Inf) %>%
+  mutate(variable_id = id, variable_name = name) %>%
+  select(variable_id, variable_name, description, units) %>%
+  collect()
+
+cultivars <- tbl(bety_src, 'cultivars', n = Inf) %>%
+  mutate(cultivar_id = id, cultivar = name) %>%
+  select(cultivar_id, cultivar)
+
+entities <- tbl(bety_src, 'entities', n = Inf) %>%
+  mutate(entity_name = name, entity_id = id) %>%
+  select(entity_name, entity_id)
+
+sites <- tbl(bety_src, 'sites', n = Inf) %>%
+  mutate(site_id = id) %>%
+  select(site_id, city, state, country, notes, sitename)
+
+treatments <- tbl(bety_src, 'treatments', n = Inf) %>%
+  mutate(treatment_id = id, treatment_definition = definition, treatment_name = name) %>%
+  select(treatment_id, treatment_name, treatment_definition) 
+
+joined_table <- traits %>%
+  left_join(variables, by = 'variable_id') %>%
+  left_join(cultivars, by = 'cultivar_id') %>%
+  left_join(entities, by = 'entity_id') %>%
+  left_join(sites, by = 'site_id') %>%
+  left_join(treatments, by = 'treatment_id') %>%
+  select(traits_id, date, mean, variable_name, sitename, treatment_name)
+```
+
+##Taking subset of joined_table containing variables that we care about
+```{r variable-tables}
+filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_cover", "canopy_height", "perimeter", "aboveground_dry_biomass", "leaf_length", "leaf_width", "plant_height", "aboveground_fresh_biomass", "growth_respiration_coefficient", "germination_score", "stem_diameter", "emergence_count")) %>%
+  collect(n = Inf)
+```
+
+```{r}
+length(which(filtered_table$variable_name == 'height'))
+```
+
+```{r}
+length(which(filtered_table$variable_name == 'aboveground_dry_biomass'))
+```
+
+```{r}
+library(stringr)
+
+outdoor_height = filtered_table %>%
+  filter(str_detect(sitename, "Field Scanner")) %>%
+  filter(str_detect(variable_name, "height"))
+
+indoor_height = filtered_table %>%
+  filter(str_detect(sitename, "Danforth Plant Science Center")) %>%
+  filter(str_detect(variable_name, "height"))
+
+```
+
+```{r}
+#Separating the filtered table into the outdoor and the indoor table
+outdoortable = filtered_table %>%
+  filter(str_detect(sitename, "Field Scanner"))
+
+indoortable = filtered_table %>%
+  filter(str_detect(sitename, "Danforth Plant Science Center")) 
+```
+
+
+###Outdoor
+
+We first check if any of the variables in the outdoor table are missing values.
+
+```{r}
+sum(is.na(outdoortable$date))
+sum(is.na(outdoortable$traits_id))
+sum(is.na(outdoortable$mean))
+sum(is.na(outdoortable$variable_name))
+sum(is.na(outdoortable$treatment_name))
+```
+
+Since $treatment\_name$ is missing 697039 values, it is not considered in any of the modeling part.
+
+As $date$ is missing 7020 values, we create a new dataset, $outdata$ that does not consider those rows which have missing date entries.
+
+```{r}
+a = which(is.na(outdoortable$date))
+outdata = outdoortable[-a,]
+```
+
+
+```{r}
+model1 = lm(log(mean + 1) ~ variable_name + traits_id + date, data = outdata)
+summary(model1) 
+summary(model1)$adj.r.squared
+```
+
+$traits\_id$ is insignificant while $variable_name$ and $date$ are. The $Adjusted R^2$ value is 0.8082532 indicating this model is pretty good.
+
+Considering interaction terms, we get,
+
+```{r}
+model2 = lm(log(mean + 1) ~ variable_name * traits_id * date, data = outdata)
+summary(model2) 
+summary(model2)$adj.r.squared
+```
+
+This has a higher $Adjusted R^2$ value of 0.9529574.
+
+```{r}
+plot(model1, which = c(2))
+plot(model2, which = c(2))
+```
+
+Both of the above models do not obey normal distribution.
+
+```{r}
+model3 = lm(log(mean + 1) ~ variable_name * date, data = outdata)
+summary(model3) 
+summary(model3)$adj.r.squared
+```
+
+```{r}
+plot(model3, which = c(2))
+```
+
+###Indoor
+
+```{r}
+modeli1 = lm(mean ~ variable_name + traits_id + date + treatment_name, data = indoortable)
+summary(modeli1)
+```
+
+```{r}
+modeli2 = lm(log(mean + 1) ~ variable_name * date * treatment_name, data = indoortable)
+summary(modeli2)
+```
+
+```{r}
+plot(modeli2, which = c(2))
+```
+
+```{r}
+plot(model2, which = c(1))
+plot(model3, which = c(1))
+plot(modeli2, which = c(1))
+```
+
+```{r}
+library(lmtest)
+bptest(model2)
+bptest(model3)
+bptest(modeli2)
+
+```
+
+For all of the above models, we see a small $p-value$, so we do reject the null of homoscedasticity and thus, the constant variance assumption is violated.
+
+The $QQ plots$ for the above models violate the normality assumption.
+
+So, we next try to remove the influential points.
+
+#Remove influential points
+
+```{r}
+total = which(cooks.distance(model2) < 4 / length(cooks.distance(model2)))
+lev = which(hatvalues(model2) > 2 * mean(hatvalues(model2)))
+outtotdata = outdata[-total,]
+model2new = lm(log(mean + 1) ~ variable_name * traits_id * date, data = outtotdata)
+plot(model2new, which = c(2))
+```
+
+```{r}
+total2 = which(cooks.distance(model3) < 4 / length(cooks.distance(model3)))
+lev2 = which(hatvalues(model3) > 2 * mean(hatvalues(model3)))
+outtotdata2 = outdata[-total2 - lev2,]
+model3new = lm(mean ~ variable_name * date, data = outtotdata2, subset = cooks.distance(model3) < 4 / length(cooks.distance(model3)))
+plot(model3new, which = c(2))
+```
+
+```{r}
+total3 = which(cooks.distance(modeli2) < 4 / length(cooks.distance(modeli2)))
+lev3 = which(hatvalues(modeli2) > 2 * mean(hatvalues(modeli2)))
+indoordata2 = indoortable[-total3 - lev3,]
+modeli2new = lm(log(mean + 1) ~ variable_name * date * treatment_name, data = indoordata2)
+plot(modeli2new, which = c(2))
+```
+
+
+###Both
+
+```{r}
+#modelb1 = lm(mean ~., data = filtered_table) #Not great values anyway. Don't use
+#summary(modelb1)
+```
+
+
+```{r}
+plot(outdoor_height$date, outdoor_height$mean)
+```
+
+
+
+
