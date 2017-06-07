@@ -1,5 +1,5 @@
 ---
-title: "Importing & Exporting Tables"
+title: "Analyses"
 author: "Ran Ji"
 date: "6/05/2017"
 output: html_document
@@ -55,7 +55,7 @@ joined_table <- traits %>%
   left_join(entities, by = 'entity_id') %>%
   left_join(sites, by = 'site_id') %>%
   left_join(treatments, by = 'treatment_id') %>%
-  dplyr::select(trait_id, date, mean, variable_name, sitename, treatment_name, entity_name)
+  dplyr::select(trait_id, date, mean, variable_name, sitename, treatment_name, entity_name, cultivar)
 ```
 
 ## Cleaning Up Table
@@ -69,26 +69,85 @@ filtered_table$indoor_outdoor <- ifelse(filtered_table$sitename == 'Danforth Pla
 #Define new variable Date that is a date type
 filtered_table$Date <- as.Date(substr(filtered_table$date, 0, 10), format = "%Y-%m-%d")
 
-#Look at which sites have which variables
+#Look at which sites have which variables and cultivars
 site_variable <- filtered_table %>%
-  group_by(indoor_outdoor, variable_name) %>%
+  group_by(indoor_outdoor, variable_name, cultivar) %>%
   summarize(n = n()) %>%
+  collect(n = Inf)
+
+outdoor_cultivar <- filter(site_variable, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')) %>%
   collect(n = Inf)
 ```
 
 ## Plotting
-```{r indoor-outdoor}
+```{r plotting-height-vs-date}
 library(ggplot2)
-
+library(gridExtra)
 #Plotting the three types of heights against Date
-#Seeing if treatment has effect on growth rate
-ggplot(data = filter(filtered_table, variable_name == 'plant_height')) +
-  geom_point(aes(x = Date, y = mean, color = treatment_name)) +
-  facet_wrap(~treatment_name)
-ggsave(indoor-plant-height-by-treatment, plot = last_plot())
-ggplot(data = filter(filtered_table, variable_name == 'canopy_height')) +
-  geom_point(aes(x = Date, y = mean))
-ggsave(outdoor-canopy-height)
-#
+
+#Indoor variables
+
+indoor_plant_height <- filter(filtered_table, variable_name == 'plant_height')
+
+indoor_perimeter <- filter(filtered_table, variable_name == 'perimeter')
+
+ggplot(indoor_plant_height, aes(x = Date, y = mean)) +
+  geom_point(aes(color = cultivar)) +
+  facet_wrap(~cultivar)
+  ylab("Plant Height (Indoor)")
+
+ggplot(indoor_plant_height, aes(x = Date, y = mean)) +
+  geom_point(aes(color = treatment_name)) +
+  ylab("Plant Height (Indoor)")
+
+ggplot(indoor_perimeter, aes(x = Date, y = mean)) +
+  geom_point(aes(color = treatment_name)) +
+  ylab("Perimeter (Indoor)")
+
+#Outdoor variables
+
+outdoor_canopy_height <- filter(filtered_table, variable_name == 'canopy_height')
+
+ggplot(outdoor_canopy_height, aes(x = Date, y = mean)) +
+  geom_point() +
+  ylab("Canopy Height (Outdoor)")
+
+ggplot(outdoor_canopy_height, aes(x = Date, y = mean)) +
+  geom_point() +
+  ylab("Canopy Height (Outdoor)")
+
+ggplot(outdoor_canopy_height, aes(x = Date, y = mean)) +
+  geom_point(aes(size = 0.1)) +
+  ylab("Canopy Cover (Outdoor)")
+
+#Outdoor and Indoor - Shared Cultivars
+indoor_cultivar <- ggplot(indoor_plant_height, aes(x = Date, y = mean)) +
+  geom_point(aes(color = cultivar)) +
+  facet_wrap(~cultivar) +
+  ylab("Plant Height (Indoor)")
+
+outdoor_cultivar <- ggplot(filter(outdoor_canopy_height, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')), aes(x = Date, y = mean)) +
+  geom_point(aes(color = cultivar)) +
+  facet_wrap(~cultivar) +
+  ylab("Canopy Height (Outdoor)")
+
+grid.arrange(indoor_cultivar, outdoor_cultivar)
+
+```
+## Converting date into estimated age for each data point
+
+```{r}
+
+
+```
+
+
+## Modeling Growth Rates
+
+```{r}
+#need to install package 'growthrates' first
+h0 <- lm(mean ~ Date, data = indoor_plant_height)
+
+
 
 ```
