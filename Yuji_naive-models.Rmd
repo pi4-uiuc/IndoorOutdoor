@@ -5,6 +5,7 @@ date: "6/5/2017"
 output: html_document
 ---
 
+## Select height data
 ```{r}
 library(stringr)
 
@@ -24,27 +25,28 @@ count(group_by(Outdoors_Height, date))
 ```
 ## Adjusting data
 ```{r}
-Outdoors_Height <- na.omit(Outdoors_Height)  ## remove NA
+## remove NA
+Outdoors_Height <- na.omit(Outdoors_Height)  
 
+## Shift date to "age"
 Indoors_Height$date <- as.numeric(Indoors_Height$date)-1401818576
 Outdoors_Height$date <- as.numeric(Outdoors_Height$date)-1464678000
 Outdoors_Height$date[Outdoors_Height$date > 7336000] <- Outdoors_Height$date[Outdoors_Height$date > 7336000]-7336800
 ```
 
 ```{r}
+## indoor model
 plot(as.numeric(Indoors_Height$date), Indoors_Height$mean, col = as.numeric(substr(Indoors_Height$treatment_name,1,2))/10)
 
 mIn <- lm(mean ~ as.numeric(date)*treatment_name, Indoors_Height)
 summary(mIn)
 
+## outdoor model
 plot(as.numeric(Outdoors_Height$date), Outdoors_Height$mean)
-
-
 
 mOut <- lm(mean ~ date, data = Outdoors_Height)
 summary(mOut)
 
-library(ggplot2)
 ```
 
 ### Put together
@@ -55,8 +57,15 @@ Whole_table$sitename[str_detect(Whole_table$sitename, 'Field')] <-"Outdoor"
 
 count(group_by(Whole_table, date))
 
+plot(Whole_table$date, Whole_table$mean, col = str_detect(Whole_table$sitename, "O")+1)
+
+## Seems a good model: interaction term accounts for the different growth rates
 mWhole <- lm(mean ~ date*as.factor(sitename), data = Whole_table)
 summary(mWhole)
-plot(Whole_table$date, Whole_table$mean, col = str_detect(Whole_table$sitename, "O")+1)
+
+## Comparing with a model without interaction term
+mWhole1 <- lm(mean ~ date+as.factor(sitename), data = Whole_table)
+summary(mWhole1)
+
 ```
 
