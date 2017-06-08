@@ -1,0 +1,256 @@
+---
+title: "2-combined-analysis"
+author: "IndoorOutdoor Team""
+date: "6/08/2017"
+output: html_document
+---
+
+## Loading BetyDB into environment and joining to make main table
+
+```{r db-connection}
+library(dplyr)
+
+bety_src <- src_postgres(dbname = "bety", 
+                password = 'bety', 
+                host = 'terra-bety.default', 
+                user = 'bety', 
+                port = 5432)
+
+# to see all available columns in traits table
+original_traits <- tbl(bety_src, 'traits') %>%
+  collect(n=1)
+
+# local version of variables for reference
+variables_local <- tbl(bety_src, 'variables', n = Inf) %>%
+  mutate(variable_id = id, variable_name = name) %>%
+  dplyr::select(variable_id, variable_name, description, units) %>%
+  collect()
+
+traits <- tbl(bety_src, 'traits', n = Inf) %>%
+  mutate(trait_id = id) %>%
+  dplyr::select(trait_id, site_id, specie_id, cultivar_id, date, mean, variable_id, method_id, treatment_id, entity_id)
+
+variables <- tbl(bety_src, 'variables', n = Inf) %>%
+  mutate(variable_id = id, variable_name = name) %>%
+  dplyr::select(variable_id, variable_name)
+
+cultivars <- tbl(bety_src, 'cultivars', n = Inf) %>%
+  mutate(cultivar_id = id, cultivar = name) %>%
+  dplyr::select(cultivar_id, cultivar)
+
+entities <- tbl(bety_src, 'entities', n = Inf) %>%
+  mutate(entity_name = name, entity_id = id) %>%
+  dplyr::select(entity_name, entity_id)
+
+sites <- tbl(bety_src, 'sites', n = Inf) %>%
+  mutate(site_id = id) %>%
+  dplyr::select(site_id, city, state, country, notes, sitename)
+
+treatments <- tbl(bety_src, 'treatments', n = Inf) %>%
+  mutate(treatment_id = id, treatment_definition = definition, treatment_name = name) %>%
+  dplyr::select(treatment_id, treatment_name, treatment_definition) 
+
+# looking for when each season began
+experiments <- tbl(bety_src, 'experiments', n = Inf) %>%
+  #mutate(treatment_id = id, treatment_definition = definition, treatment_name = name) %>%
+  #dplyr::select(treatment_id, treatment_name, treatment_definition) 
+  collect(n = Inf)
+
+# join relevant tables together
+joined_table <- traits %>%
+  left_join(variables, by = 'variable_id') %>%
+  left_join(cultivars, by = 'cultivar_id') %>%
+  left_join(entities, by = 'entity_id') %>%
+  left_join(sites, by = 'site_id') %>%
+  left_join(treatments, by = 'treatment_id') %>%
+  dplyr::select(trait_id, date, mean, variable_name, sitename, treatment_name, cultivar)
+```
+
+## Filtering Table and Definining New Variables
+
+```{r variable-tables}
+library(lubridate)
+
+# filter table for measurements that we care about
+filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_cover", "canopy_height", "perimeter", "aboveground_dry_biomass", "leaf_length", "leaf_width", "plant_height", "aboveground_fresh_biomass", "growth_respiration_coefficient", "germination_score", "stem_diameter", "emergence_count", "cultivar"))
+
+height_table <- filter(filtered_table, variable_name %in% c("canopy_height", "plant_height")) %>%
+  collect(n = Inf)
+
+# filter table for rows without date
+height_table <- filter(height_table, !is.na(height_table$date))
+
+# define variable indoor_outdoor based on sitename
+height_table$indoor_outdoor <- ifelse(height_table$sitename == 'Danforth Plant Science Center Bellweather Phenotyping Facility', 'Indoor', 'Outdoor')
+
+# define variable height(cm)
+# canopy_height is in , plant_height is in 
+# range(filter(height_table, height_table$variable_name == "canopy_height")$mean) gives 5 and 270
+# range(filter(height_table, height_table$variable_name == "plant_height")$mean) gives 17 and 1671, variables table tells us that the unit is cm but seems to be mm
+height_table$height_cm <- if_else(height_table$variable_name == "canopy_height", height_table$mean, height_table$mean/10)
+
+# define variable Date that is a date type
+height_table$Date <- as.Date(substr(height_table$date, 0, 10), format = "%Y-%m-%d")
+
+# define new variable season based on which season the data was taken
+summer2014 = interval(as.Date("2014-05-01", format = "%Y-%m-%d"), as.Date("2014-07-31", format = "%Y-%m-%d"))
+summer2016 = interval(as.Date("2016-05-01", format = "%Y-%m-%d"), as.Date("2016-07-31", format = "%Y-%m-%d"))
+fall2016 = interval(as.Date("2016-08-15", format = "%Y-%m-%d"), as.Date("2016-12-31", format = "%Y-%m-%d"))
+
+# checked whether all data in height_table fall into one of three seasons defined
+height_table$season <- if_else(height_table$Date %within% summer2014, "Summer 2014", if_else(height_table$Date %within% summer2016, "Summer 2016", "Fall 2016"))
+
+# define new variable age based on when the season began
+# 2016 season start dates came from experiments table, 2014 season start date came from Dr. LeBauer
+summer2014start = as.Date("2014-05-27", format = "%Y-%m-%d")
+summer2016start = as.Date("2016-04-19", format = "%Y-%m-%d")
+fall2016start = as.Date("2016-08-03", format = "%Y-%m-%d")
+
+height_table$age <- if_else(height_table$season == "Summer 2014", as.numeric(height_table$Date - summer2014start), if_else(height_table$season == "Summer 2016", as.numeric(height_table$Date - summer2016start), as.numeric(height_table$Date - fall2016start)))
+
+height_table$site_season <- paste(height_table$indoor_outdoor, " - ", height_table$season)
+
+# look at which sites have which variables and cultivars
+site_variable <- height_table %>%
+  group_by(indoor_outdoor, variable_name, cultivar) %>%
+  summarize(n = n()) %>%
+  collect(n = Inf)
+
+shared_cultivar <- filter(site_variable, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')) %>%
+  collect(n = Inf)
+```
+
+## Plotting
+
+```{r plotting-height-vs-age}
+library(ggplot2)
+library(gridExtra)
+
+# plotting height against age
+ggplot(height_table, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season)) +
+  ylab("Height (cm)") +
+  ggtitle("Height")
+
+ggplot(height_table, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season)) +
+  facet_wrap(~site_season) +
+  ylab("Height (cm)") +
+  ggtitle("Height by Season and Site")
+  
+# shared cultivars between indoor and outdoor
+
+ggplot(filter(height_table, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')), aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season)) +
+  facet_wrap(~cultivar) +
+  ylab("Height (cm)") +
+  ggtitle("Shared Cultivars")
+
+# indoor plants
+indoor_height <- filter(height_table, indoor_outdoor == 'Indoor')
+
+ggplot(indoor_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = cultivar)) +
+  facet_wrap(~cultivar) +
+  ylab("Height (cm)") +
+  ggtitle("Indoor Plants by Cultivar")
+
+ggplot(indoor_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = treatment_name)) +
+  facet_wrap(~treatment_name) +
+  ylab("Plant Height (Indoor)") +
+  ggtitle("Indoor Plants by Treatment")
+
+# outdoor plants
+outdoor_height <- filter(height_table, indoor_outdoor == 'Outdoor')
+
+ggplot(outdoor_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = season)) +
+  ylab("Height (cm)") +
+  ggtitle("Outdoor Plants by Season")
+
+```
+
+### Modeling - Emily
+
+## Histograms
+```{r}
+hist(outdoor_height$mean[outdoor_height$variable_name == "height"])
+hist(indoor_table$mean[indoor_table$variable_name == "plant_height"]/100)
+plot(indoor_table$date[indoor_table$variable_name == "plant_height"],indoor_table$mean[indoor_table$variable_name == "plant_height"])
+plot(outdoor_height$date[outdoor_height$variable_name == "height"],outdoor_height$mean[outdoor_height$variable_name == "height"])
+plot(outdoor_height$date[outdoor_height$variable_name == "canopy_height"],outdoor_height$mean[outdoor_height$variable_name == "canopy_height"])
+```
+
+##  Sorting by season and adding age columns
+```{r}
+library(lubridate)
+
+indoor_table_plant_height <- indoor_table[indoor_table$variable_name == 'plant_height' & !is.na(indoor_table$date),]
+
+##change units of plant_height from mm to cm
+indoor_table_plant_height$mean = indoor_table_plant_height$mean *.1
+
+indoor_start_date <- as.POSIXct("2014-05-27 12:00:00")
+for (i in 1:length(indoor_table_plant_height$date)){
+  indoor_table_plant_height$age[i] <- as.numeric(as.POSIXct(indoor_table_plant_height$date[i]) - indoor_start_date)
+}
+
+outdoor_height_canopy_height_summer <- outdoor_height[outdoor_height$variable_name == 'canopy_height' & outdoor_height$date %within% interval(as.POSIXct("2016-01-01 01:00:00"), as.POSIXct("2016-08-01 01:00:00")) & !is.na(outdoor_height$date), ]
+
+outdoorsummer_start_date <- as.POSIXct("2016-04-19 12:00:00")
+for (i in 1:length(outdoor_height_canopy_height_summer$date)){
+  outdoor_height_canopy_height_summer$age[i] <- as.numeric(as.POSIXct(outdoor_height_canopy_height_summer$date[i]) - outdoorsummer_start_date)
+}
+
+outdoor_height_canopy_height_fall <- outdoor_height[outdoor_height$variable_name == 'canopy_height' & outdoor_height$date %within% interval(as.POSIXct("2016-08-01 01:00:00"), as.POSIXct("2016-12-01 01:00:00")) & !is.na(outdoor_height$date), ]
+
+outdoorfall_start_date <- as.POSIXct("2016-08-03 12:00:00")
+for (i in 1:length(outdoor_height_canopy_height_fall$date)){
+  outdoor_height_canopy_height_fall$age[i] <- as.numeric(as.POSIXct(outdoor_height_canopy_height_fall$date[i]) - outdoorfall_start_date)
+}
+
+```
+
+## Linear Regression!
+```{r}
+plot(x=outdoor_height_canopy_height_summer$date, y=outdoor_height_canopy_height_summer$mean, type = 'p')
+plot(x=outdoor_height_canopy_height_fall$date, y=outdoor_height_canopy_height_fall$mean, type = 'p')
+
+indoor_growthmodel <- lm(mean ~ age, data = indoor_table_plant_height)
+summary(indoor_growthmodel)
+
+outdoorsummer_growthmodel <- lm(mean ~ age, data = outdoor_height_canopy_height_summer)
+summary(outdoorsummer_growthmodel)
+
+outdoorfall_growthmodel <- lm(mean ~ age, data = outdoor_height_canopy_height_fall)
+summary(outdoorfall_growthmodel)
+
+plot(x=indoor_table_plant_height$age, y=indoor_table_plant_height$mean, type = 'p')  
+abline(indoor_growthmodel)
+
+plot(x=outdoor_height_canopy_height_summer$age, y=outdoor_height_canopy_height_summer$mean, type = 'p')  
+abline(outdoorsummer_growthmodel)
+
+plot(x=outdoor_height_canopy_height_fall$age, y=outdoor_height_canopy_height_fall$mean, type = 'p')  
+abline(outdoorfall_growthmodel)
+
+
+```
+
+## Modeling - Sravani
+
+```{r}
+#need to install package 'growthrates' first
+h0 <- lm(mean ~ Date, data = indoor_plant_height)
+
+
+
+```
+
+## Modeling - Yuji
+
+```{r}
+
+
+```
