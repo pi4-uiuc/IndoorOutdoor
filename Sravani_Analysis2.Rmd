@@ -165,9 +165,52 @@ summary(modeli1)
 ```
 
 ```{r}
-modeli2 = lm(log(mean + 1) ~ variable_name * date * treatment_name, data = indoortable)
+modeli2 = lm(mean ~ 1 + date * treatment_name, data = indoortable, subset = variable_name == 'perimeter')
+plot(modeli2, which = c(2))
 summary(modeli2)
+
+
+modeli3 = lm(mean ~ 1 + date * treatment_name, data = indoortable, subset = variable_name =='plant_height')
+plot(modeli3, which = c(2))
+
+library(ggplot2) 
+ggplot(indoortable, aes(date, mean, color = treatment_name))+
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  facet_wrap(~variable_name, scales = 'free')
 ```
+
+```{r}
+library(MASS)
+library(faraway)
+boxcox(modeli2, lambda = seq(-0.25, 0.75, by = 0.05), plotit = TRUE)
+```
+
+```{r}
+modeli2box = lm((((mean ^ 0.15) - 1) / 0.15) ~  1 + date * treatment_name, data = indoortable, subset = variable_name == 'perimeter')
+plot(modeli2box, which = c(2))
+summary(modeli2box)
+```
+
+```{r}
+library(MASS)
+library(faraway)
+boxcox(modeli3, lambda = seq(-0.25, 0.75, by = 0.05), plotit = TRUE)
+```
+
+```{r}
+modeli3box = lm((((mean ^ 0.45) - 1) / 0.45) ~ 1 + date * treatment_name, data = indoortable, subset = variable_name =='plant_height')
+plot(modeli3, which = c(2))
+```
+
+```{r}
+total4 = which(cooks.distance(modeli2box) < 4 / length(cooks.distance(modeli2box)))
+lev4 = which(hatvalues(modeli2box) > 2 * mean(hatvalues(modeli2box)))
+indoordata4 = indoortable[-total4 -lev4,]
+modeli2newbox = lm((((mean ^ 0.15) - 1) / 0.15) ~  1 + date * treatment_name, data = indoordata4, subset = variable_name == 'perimeter')
+plot(modeli2newbox, which = c(2))
+```
+
 
 ```{r}
 plot(modeli2, which = c(2))
@@ -217,6 +260,7 @@ lev3 = which(hatvalues(modeli2) > 2 * mean(hatvalues(modeli2)))
 indoordata2 = indoortable[-total3 - lev3,]
 modeli2new = lm(log(mean + 1) ~ variable_name * date * treatment_name, data = indoordata2)
 plot(modeli2new, which = c(2))
+plot(modeli2, which = c(2))
 ```
 
 
