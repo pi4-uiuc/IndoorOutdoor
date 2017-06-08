@@ -414,9 +414,42 @@ plot(modeli2new, which = c(2))
 plot(modeli2, which = c(2))
 ```
 
-## Modeling - Yuji
+# Modeling - Yuji
+
+## Plots
 
 ```{r}
+## indoor model
+plot(as.numeric(indoor_height$Date), indoor_height$mean, col = as.numeric(substr(indoor_height$treatment_name,1,2))/10)
 
+mIn <- lm(mean ~ as.numeric(date)*treatment_name, indoor_height)
+summary(mIn)
+
+## outdoor model
+plot(as.numeric(Outdoors_Height$date), Outdoors_Height$mean)
+
+mOut <- lm(mean ~ date, data = Outdoors_Height)
+summary(mOut)
+
+```
+
+## Put together
+
+```{r}
+Whole_table <- rbind(indoor_height, Outdoors_Height)[,c(1,2,3,5,6)]
+Whole_table$sitename[str_detect(Whole_table$sitename, 'Danforth')] <-"Indoor"
+Whole_table$sitename[str_detect(Whole_table$sitename, 'Field')] <-"Outdoor"
+
+count(group_by(Whole_table, date))
+
+plot(Whole_table$date, Whole_table$mean, col = str_detect(Whole_table$sitename, "O")+1)
+
+## Seems a good model: interaction term accounts for the different growth rates
+mWhole <- lm(mean ~ date*as.factor(sitename), data = Whole_table)
+summary(mWhole)
+
+## Comparing with a model without interaction term
+mWhole1 <- lm(mean ~ date+as.factor(sitename), data = Whole_table)
+summary(mWhole1)
 
 ```
