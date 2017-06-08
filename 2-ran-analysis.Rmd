@@ -6,6 +6,7 @@ output: html_document
 ---
 
 ## Loading BetyDB into environment and joining to make main table
+
 ```{r db-connection}
 library(dplyr)
 
@@ -62,10 +63,11 @@ joined_table <- traits %>%
   left_join(entities, by = 'entity_id') %>%
   left_join(sites, by = 'site_id') %>%
   left_join(treatments, by = 'treatment_id') %>%
-  dplyr::select(trait_id, date, mean, variable_name, sitename, treatment_name, entity_name, cultivar)
+  dplyr::select(trait_id, date, mean, variable_name, sitename, treatment_name, cultivar)
 ```
 
 ## Filtering Table and Definining New Variables
+
 ```{r variable-tables}
 library(lubridate)
 
@@ -95,6 +97,7 @@ summer2014 = interval(as.Date("2014-05-01", format = "%Y-%m-%d"), as.Date("2014-
 summer2016 = interval(as.Date("2016-05-01", format = "%Y-%m-%d"), as.Date("2016-07-31", format = "%Y-%m-%d"))
 fall2016 = interval(as.Date("2016-08-15", format = "%Y-%m-%d"), as.Date("2016-12-31", format = "%Y-%m-%d"))
 
+# checked whether all data in height_table fall into one of three seasons defined
 height_table$season <- if_else(height_table$Date %within% summer2014, "Summer 2014", if_else(height_table$Date %within% summer2016, "Summer 2016", "Fall 2016"))
 
 # define new variable age based on when the season began
@@ -105,6 +108,8 @@ fall2016start = as.Date("2016-08-03", format = "%Y-%m-%d")
 
 height_table$age <- if_else(height_table$season == "Summer 2014", as.numeric(height_table$Date - summer2014start), if_else(height_table$season == "Summer 2016", as.numeric(height_table$Date - summer2016start), as.numeric(height_table$Date - fall2016start)))
 
+height_table$site_season <- paste(height_table$indoor_outdoor, " - ", height_table$season)
+
 # look at which sites have which variables and cultivars
 site_variable <- height_table %>%
   group_by(indoor_outdoor, variable_name, cultivar) %>%
@@ -113,57 +118,56 @@ site_variable <- height_table %>%
 
 shared_cultivar <- filter(site_variable, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')) %>%
   collect(n = Inf)
-
 ```
 
 ## Plotting
-```{r plotting-height-vs-date}
+
+```{r plotting-height-vs-age}
 library(ggplot2)
 library(gridExtra)
 
-# plotting the three types of heights against age
+# plotting height against age
+ggplot(height_table, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season)) +
+  ylab("Height (cm)") +
+  ggtitle("Height")
 
-# indoor variables
+ggplot(height_table, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season)) +
+  facet_wrap(~site_season) +
+  ylab("Height (cm)") +
+  ggtitle("Height by Season and Site")
+  
+# shared cultivars between indoor and outdoor
 
-indoor_plant_height <- filter(height_table, variable_name == 'plant_height')
+ggplot(filter(height_table, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')), aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season)) +
+  facet_wrap(~cultivar) +
+  ylab("Height (cm)") +
+  ggtitle("Shared Cultivars")
 
-ggplot(indoor_plant_height, aes(x = age, y = height_cm)) +
+# indoor plants
+indoor_height <- filter(height_table, indoor_outdoor == 'Indoor')
+
+ggplot(indoor_height, aes(x = age, y = height_cm)) +
   geom_point(aes(color = cultivar)) +
-  facet_wrap(~cultivar)
-  ylab("Plant Height (Indoor)")
+  facet_wrap(~cultivar) +
+  ylab("Height (cm)") +
+  ggtitle("Indoor Plants by Cultivar")
 
-ggplot(indoor_plant_height, aes(x = age, y = height_cm)) +
+ggplot(indoor_height, aes(x = age, y = height_cm)) +
   geom_point(aes(color = treatment_name)) +
-  ylab("Plant Height (Indoor)")
+  facet_wrap(~treatment_name) +
+  ylab("Plant Height (Indoor)") +
+  ggtitle("Indoor Plants by Treatment")
 
-# outdoor variables
+# outdoor plants
+outdoor_height <- filter(height_table, indoor_outdoor == 'Outdoor')
 
-outdoor_canopy_height <- filter(filtered_table, variable_name == 'canopy_height')
-
-ggplot(outdoor_canopy_height, aes(x = Date, y = mean)) +
-  geom_point() +
-  ylab("Canopy Height (Outdoor)")
-
-ggplot(outdoor_canopy_height, aes(x = Date, y = mean)) +
-  geom_point() +
-  ylab("Canopy Height (Outdoor)")
-
-ggplot(outdoor_canopy_height, aes(x = Date, y = mean)) +
-  geom_point(aes(size = 0.1)) +
-  ylab("Canopy Cover (Outdoor)")
-
-# outdoor and Indoor - Shared Cultivars
-indoor_cultivar <- ggplot(indoor_plant_height, aes(x = Date, y = mean)) +
-  geom_point(aes(color = cultivar)) +
-  facet_wrap(~cultivar) +
-  ylab("Plant Height (Indoor)")
-
-outdoor_cultivar <- ggplot(filter(outdoor_canopy_height, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')), aes(x = Date, y = mean)) +
-  geom_point(aes(color = cultivar)) +
-  facet_wrap(~cultivar) +
-  ylab("Canopy Height (Outdoor)")
-
-grid.arrange(indoor_cultivar, outdoor_cultivar)
+ggplot(outdoor_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = season)) +
+  ylab("Height (cm)") +
+  ggtitle("Outdoor Plants by Season")
 
 ```
 
