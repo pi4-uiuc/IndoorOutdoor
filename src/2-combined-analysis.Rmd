@@ -249,7 +249,7 @@ ggplot() +
   geom_smooth(data = indoor_height, aes(x = age, y = height_cm), method = "lm", col = "gold3", se = FALSE) +
   ylab("Height (cm)") +
   xlab("Age (day)") +
-  ggtitle('Outdoor - Fall 2016')
+  ggtitle('Combined Models')
 ggsave("combined_model.png", path = "~/IndoorOutdoor/data")
 
 ```
