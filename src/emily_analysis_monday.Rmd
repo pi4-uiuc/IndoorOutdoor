@@ -63,8 +63,8 @@ joined_table <- traits %>%
   select(traits_id, date, mean, variable_name, sitename, treatment_name, cultivar) %>%
   collect(n=Inf)
 
-sum(is.na(joined_table$cultivar))
-sum(!is.na(joined_table$cultivar))
+#sum(is.na(joined_table$cultivar))
+#sum(!is.na(joined_table$cultivar))
 ```
 
 ## Taking subset of joined_table containing variables that we care about
@@ -75,8 +75,8 @@ filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_co
 
 ## Indoor and outdoor tables
 ```{r}
-indoor_table <- joined_table[grepl("Danforth", joined_table$sitename), ]
-outdoor_table <- joined_table[grepl("MAC", joined_table$sitename), ]
+indoor_table <- filtered_table[grepl("Danforth", filtered_table$sitename), ]
+outdoor_table <- filtered_table[grepl("MAC", filtered_table$sitename), ]
 ```
 
 ## Compare Means
@@ -86,7 +86,7 @@ mean(outdoor_table$mean[outdoor_table$variable_name == "canopy_height"])
 mean(indoor_table$mean[indoor_table$variable_name == "plant_height"])
 ```
 
-## Histograms
+## Plots
 ```{r}
 hist(outdoor_table$mean[outdoor_table$variable_name == "height"])
 hist(indoor_table$mean[indoor_table$variable_name == "plant_height"]/100)
@@ -112,8 +112,8 @@ unique(year_2017$variable_name)
 ```{r}
 cultivar_available <- joined_table[!is.na(joined_table$cultivar), ]
 
-unique(cultivar_available$sitename)
-unique(joined_table$sitename)
+#unique(cultivar_available$sitename)
+#unique(joined_table$sitename)
 
 length(unique(cultivar_available$sitename))
 length(unique(joined_table$sitename))
@@ -121,7 +121,7 @@ length(unique(joined_table$sitename))
 cultivar_sites <- unique(cultivar_available$sitename)
 all_sites <- unique(joined_table$sitename)
 
-setdiff(all_sites, cultivar_sites)
+#setdiff(all_sites, cultivar_sites)
 ```
 
 ## What are Season 1 and 2?
