@@ -1,0 +1,219 @@
+---
+title: "Modeling"
+author: "Sravani Vadali"
+date: "6/9/2017"
+output: html_document
+---
+
+```{r, echo = FALSE}
+library(stringr)
+
+library(dplyr)
+
+bety_src <- src_postgres(dbname = "bety", 
+                password = 'bety', 
+                host = 'terra-bety.default', 
+                user = 'bety', 
+                port = 5432)
+
+# to see all available columns in traits table
+original_traits <- tbl(bety_src, 'traits') %>%
+  collect(n=1)
+
+# local version of variables for reference
+variables_local <- tbl(bety_src, 'variables', n = Inf) %>%
+  mutate(variable_id = id, variable_name = name) %>%
+  dplyr::select(variable_id, variable_name, description, units) %>%
+  collect()
+
+traits <- tbl(bety_src, 'traits', n = Inf) %>%
+  mutate(trait_id = id) %>%
+  dplyr::select(trait_id, site_id, specie_id, cultivar_id, date, mean, variable_id, method_id, treatment_id, entity_id)
+
+variables <- tbl(bety_src, 'variables', n = Inf) %>%
+  mutate(variable_id = id, variable_name = name) %>%
+  dplyr::select(variable_id, variable_name)
+
+cultivars <- tbl(bety_src, 'cultivars', n = Inf) %>%
+  mutate(cultivar_id = id, cultivar = name) %>%
+  dplyr::select(cultivar_id, cultivar)
+
+entities <- tbl(bety_src, 'entities', n = Inf) %>%
+  mutate(entity_name = name, entity_id = id) %>%
+  dplyr::select(entity_name, entity_id)
+
+sites <- tbl(bety_src, 'sites', n = Inf) %>%
+  mutate(site_id = id) %>%
+  dplyr::select(site_id, city, state, country, notes, sitename)
+
+treatments <- tbl(bety_src, 'treatments', n = Inf) %>%
+  mutate(treatment_id = id, treatment_definition = definition, treatment_name = name) %>%
+  dplyr::select(treatment_id, treatment_name, treatment_definition) 
+
+joined_table <- traits %>%
+  left_join(variables, by = 'variable_id') %>%
+  left_join(cultivars, by = 'cultivar_id') %>%
+  left_join(entities, by = 'entity_id') %>%
+  left_join(sites, by = 'site_id') %>%
+  left_join(treatments, by = 'treatment_id') %>%
+  dplyr::select(trait_id, date, mean, variable_name, sitename, treatment_name, cultivar)
+
+filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_cover", "canopy_height", "perimeter", "aboveground_dry_biomass", "leaf_length", "leaf_width", "plant_height", "aboveground_fresh_biomass", "growth_respiration_coefficient", "germination_score", "stem_diameter", "emergence_count")) %>%
+  collect(n = Inf)
+
+#Separating the filtered table into the outdoor and the indoor table
+outdoortable = filtered_table %>%
+  filter(str_detect(sitename, "Field Scanner"))
+
+indoortable = filtered_table %>%
+  filter(str_detect(sitename, "Danforth Plant Science Center")) 
+```
+
+#Outdoor Analysis
+
+We first check if any of the variables in the outdoor table are missing values.
+
+```{r}
+sum(is.na(outdoortable$date))
+sum(is.na(outdoortable$trait_id))
+sum(is.na(outdoortable$mean))
+sum(is.na(outdoortable$variable_name))
+sum(is.na(outdoortable$treatment_name))
+```
+
+Since $treatment\_name$ is missing 697039 values, it is not considered in any of the modeling part.
+
+As $date$ is missing 7020 values, we create a new dataset, $outdata$ that does not consider those rows which have missing date entries.
+
+```{r}
+a = which(is.na(outdoortable$date))
+outdata = outdoortable[-a,]
+```
+
+
+```{r}
+model1 = lm(log(mean + 1) ~ variable_name + trait_id + date, data = outdata)
+summary(model1) 
+summary(model1)$adj.r.squared
+```
+
+$trait\_id$ is insignificant while $variable\_name$ and $date$ are. The $Adjusted R^2$ value is 0.9464145 indicating this model is pretty good.
+
+Considering interaction terms, we get,
+
+```{r}
+model2 = lm(log(mean + 1) ~ variable_name * trait_id * date, data = outdata)
+summary(model2) 
+summary(model2)$adj.r.squared
+```
+
+This has a higher $Adjusted R^2$ value of 0.9593952.
+
+```{r}
+model1b = lm(log((mean + 1)^2) ~ variable_name + trait_id + date, data = outdata)
+model2b = lm(log((mean + 1)^2) ~ variable_name * trait_id * date, data = outdata)
+summary(model1b)$adj.r.squared
+summary(model2b)$adj.r.squared
+```
+
+
+```{r}
+plot(model1, which = c(2))
+```
+
+```{r}
+plot(model2, which = c(2))
+```
+
+```{r}
+plot(model1b, which = c(2))
+```
+
+```{r}
+plot(model2b, which = c(2))
+```
+
+All of the above models do not obey normal distribution.
+
+```{r}
+model3 = lm(log(mean + 1) ~ variable_name * date, data = outdata)
+summary(model3) 
+summary(model3)$adj.r.squared
+```
+
+```{r}
+plot(model3, which = c(2))
+```
+
+So, we next try to remove the influential points.
+
+##Remove influential points
+
+
+```{r}
+total = which(cooks.distance(model2) < 4 / length(cooks.distance(model2)))
+lev = which(hatvalues(model2) > 2 * mean(hatvalues(model2)))
+outtotdata = outdata[-total,]
+model2new = lm(log(mean + 1) ~ variable_name * trait_id * date, data = outtotdata)
+plot(model2new, which = c(2))
+```
+
+```{r}
+summary(model2new)$adj.r.squared
+```
+
+
+The $model2new$ is the best model when we consider the Outdoor table. This is because it has a good $Adjusted\;R^2$ value of 0.8936986 and the QQ plot indicates that it almost follows a normal distribution.
+
+
+#Indoor Analysis
+
+```{r}
+modeli1 = lm(mean ~ variable_name + trait_id + date + treatment_name, data = indoortable)
+summary(modeli1)
+```
+
+```{r}
+modeli2 = lm(mean ~ 1 + date * treatment_name, data = indoortable, subset = variable_name == 'perimeter')
+plot(modeli2, which = c(2))
+summary(modeli2)
+
+
+modeli3 = lm(mean ~ 1 + date * treatment_name, data = indoortable, subset = variable_name =='plant_height')
+plot(modeli3, which = c(2))
+
+library(ggplot2) 
+ggplot(indoortable, aes(date, mean, color = treatment_name))+
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  facet_wrap(~variable_name, scales = 'free')
+```
+
+
+```{r}
+modeli2box = lm((((mean ^ 0.15) - 1) / 0.15) ~  1 + date * treatment_name, data = indoortable, subset = variable_name == 'perimeter')
+plot(modeli2box, which = c(2))
+summary(modeli2box)
+```
+
+
+```{r}
+modeli3box = lm((((mean ^ 0.45) - 1) / 0.45) ~ 1 + date * treatment_name, data = indoortable, subset = variable_name =='plant_height')
+plot(modeli3, which = c(2))
+```
+
+```{r}
+total4 = which(cooks.distance(modeli2box) < 4 / length(cooks.distance(modeli2box)))
+lev4 = which(hatvalues(modeli2box) > 2 * mean(hatvalues(modeli2box)))
+indoordata4 = indoortable[-total4 -lev4,]
+modeli2newbox = lm((((mean ^ 0.15) - 1) / 0.15) ~  1 + date * treatment_name, data = indoordata4, subset = variable_name == 'perimeter')
+plot(modeli2newbox, which = c(2))
+```
+
+```{r}
+summary(modeli2newbox)$adj.r.squared
+```
+
+
+The $modeli2newbox$ is the best model when we consider the Outdoor table. This is because it has a good $Adjusted\;R^2$ value of 0.7636435 and the QQ plot indicates that it almost follows a normal distribution.
+
