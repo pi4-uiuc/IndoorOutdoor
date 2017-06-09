@@ -134,12 +134,14 @@ ggplot(canopy_height_plant_height, aes(x = age, y = height_cm)) +
   geom_point(aes(color = site_season, alpha = 1/10)) +
   ylab("Height (cm)") +
   ggtitle("Height")
+ggsave("height_vs_age.png", width = 13, height = 7, path = "~/IndoorOutdoor/data")
 
 ggplot(canopy_height_plant_height, aes(x = age, y = height_cm)) +
   geom_point(aes(color = site_season, alpha = 1/10)) +
   facet_wrap(~site_season) +
   ylab("Height (cm)") +
   ggtitle("Height by Season and Site")
+ggsave("height_by_season_and_site.png", width = 15, height = 3.8, path = "~/IndoorOutdoor/data")
   
 # shared cultivars between indoor and outdoor
 
@@ -148,6 +150,7 @@ ggplot(filter(canopy_height_plant_height, cultivar %in% c('BTx642', 'PI_564163',
   facet_wrap(~cultivar) +
   ylab("Height (cm)") +
   ggtitle("Shared Cultivars")
+ggsave("shared_cultivars.png", path = "~/IndoorOutdoor/data")
 
 # indoor plants
 indoor_height <- filter(canopy_height_plant_height, indoor_outdoor == 'Indoor')
@@ -157,12 +160,14 @@ ggplot(indoor_height, aes(x = age, y = height_cm)) +
   facet_wrap(~cultivar) +
   ylab("Height (cm)") +
   ggtitle("Indoor Plants by Cultivar")
+ggsave("indoor_plants_by_cultivar.png", height = 5, width = 7, path = "~/IndoorOutdoor/data")
 
 ggplot(indoor_height, aes(x = age, y = height_cm)) +
   geom_point(aes(color = treatment_name, alpha = 1/10)) +
   facet_wrap(~treatment_name) +
   ylab("Plant Height (Indoor)") +
   ggtitle("Indoor Plants by Treatment")
+ggsave("indoor_plants_by_treatment.png", path = "~/IndoorOutdoor/data")
 
 # outdoor plants
 outdoor_height <- filter(canopy_height_plant_height, indoor_outdoor == 'Outdoor')
@@ -171,6 +176,7 @@ ggplot(outdoor_height, aes(x = age, y = height_cm)) +
   geom_point(aes(color = season, alpha = 1/10)) +
   ylab("Height (cm)") +
   ggtitle("Outdoor Plants by Season")
+ggsave("outdoor_plants_by_season.png", path = "~/IndoorOutdoor/data")
 
 ```
 
@@ -182,16 +188,19 @@ ggplot(indoor_height, aes(x = Date, y = height_cm)) +
   geom_point(alpha = 1/10) +
   ylab("Height (cm)") +
   ggtitle("Indoor Plants - Plant Height")
+ggsave("indoor_plants_plant_height.png", path = "~/IndoorOutdoor/data")
 
 ggplot(filter(height_table, variable_name == "height"), aes(x = Date, y = height_cm)) +
   geom_point(alpha = 1/10) +
   ylab("Height (cm)") +
   ggtitle("Outdoor Plants - Height")
+ggsave("outdoor_plants_height.png", path = "~/IndoorOutdoor/data")
 
 ggplot(filter(height_table, variable_name == "canopy_height"), aes(x = Date, y = height_cm)) +
   geom_point(alpha = 1/10) +
   ylab("Height (cm)") +
   ggtitle("Outdoor Plant - Canopy Height")
+ggsave("outdoor_plants_canopy_height.png", path = "~/IndoorOutdoor/data")
 
 ```
 
@@ -213,6 +222,7 @@ ggplot(indoor_height, aes(x = age, y = height_cm)) +
   ylab("Height (cm)") +
   xlab("Age (day)") +
   ggtitle("Indoor")
+ggsave("indoor_model.png", path = "~/IndoorOutdoor/data")
 
 ggplot(filter(outdoor_height, season == "Summer 2016"), aes(x = age, y = height_cm)) +
   geom_point(alpha = 1/10) +
@@ -220,6 +230,7 @@ ggplot(filter(outdoor_height, season == "Summer 2016"), aes(x = age, y = height_
   ylab("Height (cm)") +
   xlab("Age (day)") +
   ggtitle("Outdoor - Summer 2016")
+ggsave("outdoor_summer_model.png", path = "~/IndoorOutdoor/data")
 
 ggplot(filter(outdoor_height, season == "Fall 2016"), aes(x = age, y = height_cm)) +
   geom_point(alpha = 1/10) +
@@ -227,6 +238,19 @@ ggplot(filter(outdoor_height, season == "Fall 2016"), aes(x = age, y = height_cm
   ylab("Height (cm)") +
   xlab("Age (day)") +
   ggtitle("Outdoor - Fall 2016")
+ggsave("outdoor_fall_model.png", path = "~/IndoorOutdoor/data")
+
+ggplot() +
+  geom_point(data = filter(outdoor_height, season == "Summer 2016"), aes(x = age, y = height_cm), col = "aquamarine3", alpha = 1/10) +
+  geom_smooth(data = filter(outdoor_height, season == "Summer 2016"), aes(x = age, y = height_cm), method = "lm", col = "aquamarine4", se = FALSE) +
+  geom_point(data = filter(outdoor_height, season == "Fall 2016"), aes(x = age, y = height_cm), col = "mediumorchid", alpha = 1/10) +
+  geom_smooth(data = filter(outdoor_height, season == "Fall 2016"), aes(x = age, y = height_cm), method = "lm", col = "mediumorchid4", se = FALSE) +
+  geom_point(data = indoor_height, aes(x = age, y = height_cm), col = "gold", alpha = 1/10) +
+  geom_smooth(data = indoor_height, aes(x = age, y = height_cm), method = "lm", col = "gold3", se = FALSE) +
+  ylab("Height (cm)") +
+  xlab("Age (day)") +
+  ggtitle('Outdoor - Fall 2016')
+ggsave("combined_model.png", path = "~/IndoorOutdoor/data")
 
 ```
 
