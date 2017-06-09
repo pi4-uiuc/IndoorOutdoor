@@ -74,7 +74,7 @@ library(lubridate)
 # filter table for measurements that we care about
 filtered_table <- filter(joined_table, variable_name %in% c("height", "canopy_cover", "canopy_height", "perimeter", "aboveground_dry_biomass", "leaf_length", "leaf_width", "plant_height", "aboveground_fresh_biomass", "growth_respiration_coefficient", "germination_score", "stem_diameter", "emergence_count", "cultivar"))
 
-height_table <- filter(filtered_table, variable_name %in% c("canopy_height", "plant_height")) %>%
+height_table <- filter(filtered_table, variable_name %in% c("canopy_height", "plant_height", "height")) %>%
   collect(n = Inf)
 
 # filter table for rows without date
@@ -87,7 +87,7 @@ height_table$indoor_outdoor <- ifelse(height_table$sitename == 'Danforth Plant S
 # canopy_height is in , plant_height is in 
 # range(filter(height_table, height_table$variable_name == "canopy_height")$mean) gives 5 and 270
 # range(filter(height_table, height_table$variable_name == "plant_height")$mean) gives 17 and 1671, variables table tells us that the unit is cm but seems to be mm
-height_table$height_cm <- if_else(height_table$variable_name == "canopy_height", height_table$mean, height_table$mean/10)
+height_table$height_cm <- if_else(height_table$variable_name == "canopy_height", height_table$mean, if_else(height_table$variable_name == "plant_height", height_table$mean/10, height_table$mean))
 
 # define variable Date that is a date type
 height_table$Date <- as.Date(substr(height_table$date, 0, 10), format = "%Y-%m-%d")
@@ -110,6 +110,9 @@ height_table$age <- if_else(height_table$season == "Summer 2014", as.numeric(hei
 
 height_table$site_season <- paste(height_table$indoor_outdoor, " - ", height_table$season)
 
+canopy_height_plant_height <- filter(height_table, variable_name %in% c("canopy_height", "plant_height")) %>%
+  collect(n = Inf)
+
 # look at which sites have which variables and cultivars
 site_variable <- height_table %>%
   group_by(indoor_outdoor, variable_name, cultivar) %>%
@@ -127,45 +130,45 @@ library(ggplot2)
 library(gridExtra)
 
 # plotting height against age
-ggplot(height_table, aes(x = age, y = height_cm)) +
-  geom_point(aes(color = site_season)) +
+ggplot(canopy_height_plant_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season, alpha = 1/10)) +
   ylab("Height (cm)") +
   ggtitle("Height")
 
-ggplot(height_table, aes(x = age, y = height_cm)) +
-  geom_point(aes(color = site_season)) +
+ggplot(canopy_height_plant_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season, alpha = 1/10)) +
   facet_wrap(~site_season) +
   ylab("Height (cm)") +
   ggtitle("Height by Season and Site")
   
 # shared cultivars between indoor and outdoor
 
-ggplot(filter(height_table, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')), aes(x = age, y = height_cm)) +
-  geom_point(aes(color = site_season)) +
+ggplot(filter(canopy_height_plant_height, cultivar %in% c('BTx642', 'PI_564163', 'Tx430', 'TX7000')), aes(x = age, y = height_cm)) +
+  geom_point(aes(color = site_season, alpha = 1/10)) +
   facet_wrap(~cultivar) +
   ylab("Height (cm)") +
   ggtitle("Shared Cultivars")
 
 # indoor plants
-indoor_height <- filter(height_table, indoor_outdoor == 'Indoor')
+indoor_height <- filter(canopy_height_plant_height, indoor_outdoor == 'Indoor')
 
 ggplot(indoor_height, aes(x = age, y = height_cm)) +
-  geom_point(aes(color = cultivar)) +
+  geom_point(aes(color = cultivar, alpha = 1/10)) +
   facet_wrap(~cultivar) +
   ylab("Height (cm)") +
   ggtitle("Indoor Plants by Cultivar")
 
 ggplot(indoor_height, aes(x = age, y = height_cm)) +
-  geom_point(aes(color = treatment_name)) +
+  geom_point(aes(color = treatment_name, alpha = 1/10)) +
   facet_wrap(~treatment_name) +
   ylab("Plant Height (Indoor)") +
   ggtitle("Indoor Plants by Treatment")
 
 # outdoor plants
-outdoor_height <- filter(height_table, indoor_outdoor == 'Outdoor')
+outdoor_height <- filter(canopy_height_plant_height, indoor_outdoor == 'Outdoor')
 
 ggplot(outdoor_height, aes(x = age, y = height_cm)) +
-  geom_point(aes(color = season)) +
+  geom_point(aes(color = season, alpha = 1/10)) +
   ylab("Height (cm)") +
   ggtitle("Outdoor Plants by Season")
 
