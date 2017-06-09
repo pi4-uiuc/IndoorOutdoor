@@ -5,7 +5,87 @@ date: "6/08/2017"
 output: html_document
 ---
 
-# Loading BetyDB into environment and joining to make main table
+# Report
+
+## Background/Justification
+* Farmers are often interested in knowing the growth rate for sorghum, so that they can better predict harvest time.
+* It is much easier to gather data on sorghum grown indoors compared to outdoors.
+* The TERRA-REF database includes information on sorghum grown in greenhouses as well as sorghum grown outdoors.
+* Our goal is to use this data to find a preliminary relationship between the growth rate for sorghum grown indoors versus sorghum grown outdoors.
+ 
+## Data Description
+Step 1: Pull data from the TERRA-REF database
+* traits 
++ table with all metrics gathered
+* variables
++ Contains list of all metrics/data gathered in the TERRA-REF project
+* cultivars
++ cultivar
+* entities
++ Contains list of machines used to collect data
++ Unused
+* sites
++ Contains list of location of plants
+* treatments
++ Contains list of treatments for plants
++ Unused
+* experiments
++ Contains list of all experiments performed, including the planting date for different seasons
+ 
+Step 2: Join TERRA-REF tables together to have a table with all variables relevant to our project
+* Joined_table
++ Joined together traits, variables, cultivars, entities, sites, treatments tables by the appropriate ids
+ 
+Step 3: Filter table for records we need and add new variables as needed
+* filtered_table
++ Filtered the joined_table for the metrics that best describe growth, including height, leaf_width, leaf_length
+* height_table
++ Further analysis showed that the only metric with data from both indoor and outdoor sorghum is height
++ Filtered the filtered_table  for three metrics: height, plant_height, canopy_height
++ Filtered out any records without date
++ Added columns
+- indoor_outdoor (whether the metric is taken indoor or outdoor, based on site variable)
+- height_cm (height, plant_height, canopy_height had different units of measurement; this column changes all to cm)
+- Date (takes the day, month, year information from date and constructs a date object)
+- season (uses Date to categorize plant into seasons)
+- age (found start date for each season in experiments table and from Dr. LeBauer, calculated age of plant in days)
+- site_season (concatenates indoor_outdoor and season values for plotting purposes)
+* indoor_height
++ Table consisting of only the indoor height data
+* outdoor_height
++ Table consisting of only the outdoor height data
+ 
+# Approach & Methods
+* Our initial thinking
++ In the ideal case, our goal is with all the other conditions fixed, to look at the difference between heights of indoor and outdoor plants. Specifically we can do it with all the available predictors like cultivars and treatments, and compare different variables such as canopy heights, canopy cover, leaf lengths and leaf widths.
+* Our first step included plotting the data (height again age) to get a sense for the data
++ Unfortunately, the data was far from ideal. The only variable shared by indoor and outdoor plants is height (plant heights for indoor plants and canopy heights for outdoor ones). Also, the indoor plants and outdoor plants were grown in different places and different times, and neither the cultivars nor the treatment types of the indoor plants coincided with those of the outdoor plants. As a consequence, it’s not feasible to control variables. 
++ Anyway, what we can do is try to build a model to show the relation between indoor and outdoor heights. We first looked at the indoor and outdoor heights data separately. We made plots of them and set up our first linear models. For the indoor model we found cultivar is a significant factor, but treatment type is not. For the outdoor model, we found season to be a significant factor. 
++ After that we put the indoor and outdoor data together. This time we could only include a factor specifying indoor or outdoor, and the model showed that indoor plants grow much faster. However, the linear models were not quite satisfying, since they predicted negative values for heights at 0 age. Also, the variances seemed to be too large. Probably we could fix this by tracing the growing history of every single plant.
+ 
+## Analysis & Results
+* A table that consists of only the Indoor data is created.
+* The significant variables from the indoor table have been considered for modeling. The interaction terms for each predictor variable have been considered.
+* The QQ plot for each model was observed.
+* The models were made better by removing the influential and the leverage points. The predictor variable was also transformed to ensure that the model follows the Normality Assumption.
+* Box-Cox transformation was implemented to obtain a better model.
+* The final indoor model that we chose is:
+* A similar approach was followed for Outdoor data. A separate table that consists of just the Outdoor data was created.
+* The rows with the missing date values were not considered for modeling.
+* The final outdoor model that we chose is:
+ 
+## Discussion
+* Discussion of findings
++ We suspect that these findings will not be surprising to anyone. Plants grown in a manufactured environment grow more quickly than those subject to unpredictable weather patterns. Since we only had three crops of plants, our findings cannot be very conclusive. We are able to propose, however, some suggestions for further research into this topic.
+* Ideas for future exploration:
++ If we were to continue this project, we would want more data to work with, particularly plant growth from more seasons and more outdoor locations. This way, we could draw more general conclusions about outdoor sorghum growth. Further, we would like to have more measures of growth to analyze, such as plant diameter, leaf width, and crop yield. These would give a more full picture of the overall growth than merely plant height.
++ We also wanted to explore growth rates of particular cultivars of sorghum bicolor, but ran out of time to complete this analysis. Further, there were very few cultivars which were grown both indoor and outdoor. For a full analysis, it would be helpful to have data about the growth of more cultivars, so we could determine if different cultivars fare better in different conditions.
++ Finally, we would want to incorporate weather data in our analysis. We suspect that plants grown outdoors in conditions more similar to the greenhouse environment might yield higher growth. 
+
+
+# Data Cleaning & Filtering
+
+## Loading BetyDB into environment and joining to make main table
 
 ```{r db-connection}
 library(dplyr)
@@ -253,7 +333,6 @@ ggplot() +
 ggsave("combined_model.png", path = "~/IndoorOutdoor/data")
 
 ```
-
 
 # Modeling - Yuji
 
