@@ -36,3 +36,6 @@ vignettes/*.pdf
 .gitignore
 .betykey.R
 IndoorOutdoor.Rproj
+
+#started writing the report in R Studio but team decided to move to Google Docs
+report-text
