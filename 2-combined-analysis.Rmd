@@ -419,37 +419,57 @@ plot(modeli2, which = c(2))
 ## Plots
 
 ```{r}
-## indoor model
-plot(as.numeric(indoor_height$Date), indoor_height$mean, col = as.numeric(substr(indoor_height$treatment_name,1,2))/10)
+## indoor models
+ggplot(indoor_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = treatment_name, alpha = 1/10)) +
+  ylab("Plant Height (Indoor)") +
+  facet_wrap(~treatment_name) +
+  ggtitle("Indoor Plants by Treatment")
 
-mIn <- lm(mean ~ as.numeric(date)*treatment_name, indoor_height)
-summary(mIn)
+m_indoor_treat <- lm(height_cm ~ age*treatment_name, indoor_height)
+summary(m_indoor_treat)
+
+## no significant difference among treatment, except for a slight reduction for 40%
+
+ggplot(indoor_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = cultivar, alpha = 1/10)) +
+  ylab("Height (cm)") +
+  facet_wrap(~cultivar) +
+  ggtitle("Indoor Plants by Cultivar")
+
+m_indoor_cultivar <- lm(height_cm ~ age*cultivar, indoor_height)
+summary(m_indoor_cultivar)
+
+## Growing rates: BTx642 = Tx430 > PI_564163 > TX7000
 
 ## outdoor model
-plot(as.numeric(Outdoors_Height$date), Outdoors_Height$mean)
+ggplot(outdoor_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = season, alpha = 1/10)) +
+  ylab("Height (cm)") +
+  ggtitle("Outdoor Plants by Season")
 
-mOut <- lm(mean ~ date, data = Outdoors_Height)
-summary(mOut)
+m_out_season <- lm(height_cm ~ age*season, data = outdoor_height)
+summary(m_out_season)
+
+## growing faster in summer than in fall
 
 ```
 
 ## Put together
 
 ```{r}
-Whole_table <- rbind(indoor_height, Outdoors_Height)[,c(1,2,3,5,6)]
-Whole_table$sitename[str_detect(Whole_table$sitename, 'Danforth')] <-"Indoor"
-Whole_table$sitename[str_detect(Whole_table$sitename, 'Field')] <-"Outdoor"
+whole_height <- rbind(indoor_height, outdoor_height)
 
-count(group_by(Whole_table, date))
+ggplot(whole_height, aes(x = age, y = height_cm)) +
+  geom_point(aes(color = indoor_outdoor, alpha = 1/10)) +
+  ylab("Height (cm)") +
+  ggtitle("Outdoor Plants by Season")
 
-plot(Whole_table$date, Whole_table$mean, col = str_detect(Whole_table$sitename, "O")+1)
 
 ## Seems a good model: interaction term accounts for the different growth rates
-mWhole <- lm(mean ~ date*as.factor(sitename), data = Whole_table)
-summary(mWhole)
+m_whole <- lm(height_cm ~ age*indoor_outdoor, data = whole_height)
+summary(m_whole)
 
-## Comparing with a model without interaction term
-mWhole1 <- lm(mean ~ date+as.factor(sitename), data = Whole_table)
-summary(mWhole1)
+## Significant difference between indoor and outdoor
 
 ```
