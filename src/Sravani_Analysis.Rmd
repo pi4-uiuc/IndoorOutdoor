@@ -1,6 +1,6 @@
 ---
 title: "Importing & Exporting Tables"
-author: "Ran Ji"
+author: "Sravani Vadali"
 date: "5/30/2017"
 output: html_document
 ---
@@ -102,8 +102,28 @@ indoortable = filtered_table %>%
 
 ###Outdoor
 
+We first check if any of the variables in the outdoor table are missing values.
+
 ```{r}
-model1 = lm(mean ~ variable_name + traits_id + date, data = outdoortable)
+sum(is.na(outdoortable$date))
+sum(is.na(outdoortable$traits_id))
+sum(is.na(outdoortable$mean))
+sum(is.na(outdoortable$variable_name))
+sum(is.na(outdoortable$treatment_name))
+```
+
+Since $treatment\_name$ is missing 697039 values, it is not considered in any of the modeling part.
+
+As $date$ is missing 7020 values, we create a new dataset, $outdata$ that does not consider those rows which have missing date entries.
+
+```{r}
+a = which(is.na(outdoortable$date))
+outdata = outdoortable[-a,]
+```
+
+
+```{r}
+model1 = lm(log(mean + 1) ~ variable_name + traits_id + date, data = outdata)
 summary(model1) 
 summary(model1)$adj.r.squared
 ```
@@ -113,7 +133,7 @@ $traits\_id$ is insignificant while $variable_name$ and $date$ are. The $Adjuste
 Considering interaction terms, we get,
 
 ```{r}
-model2 = lm(mean ~ variable_name * traits_id * date, data = outdoortable)
+model2 = lm(log(mean + 1) ~ variable_name * traits_id * date, data = outdata)
 summary(model2) 
 summary(model2)$adj.r.squared
 ```
@@ -128,7 +148,7 @@ plot(model2, which = c(2))
 Both of the above models do not obey normal distribution.
 
 ```{r}
-model3 = lm(mean ~ variable_name * date, data = outdoortable)
+model3 = lm(log(mean + 1) ~ variable_name * date, data = outdata)
 summary(model3) 
 summary(model3)$adj.r.squared
 ```
@@ -145,13 +165,60 @@ summary(modeli1)
 ```
 
 ```{r}
-modeli2 = lm(mean ~ variable_name * date * treatment_name, data = indoortable)
+modeli2 = lm(log(mean + 1) ~ variable_name * date * treatment_name, data = indoortable)
 summary(modeli2)
 ```
 
 ```{r}
 plot(modeli2, which = c(2))
 ```
+
+```{r}
+plot(model2, which = c(1))
+plot(model3, which = c(1))
+plot(modeli2, which = c(1))
+```
+
+```{r}
+library(lmtest)
+bptest(model2)
+bptest(model3)
+bptest(modeli2)
+
+```
+
+For all of the above models, we see a small $p-value$, so we do reject the null of homoscedasticity and thus, the constant variance assumption is violated.
+
+The $QQ plots$ for the above models violate the normality assumption.
+
+So, we next try to remove the influential points.
+
+#Remove influential points
+
+```{r}
+total = which(cooks.distance(model2) < 4 / length(cooks.distance(model2)))
+lev = which(hatvalues(model2) > 2 * mean(hatvalues(model2)))
+outtotdata = outdata[-total,]
+model2new = lm(log(mean + 1) ~ variable_name * traits_id * date, data = outtotdata)
+plot(model2new, which = c(2))
+```
+
+```{r}
+total2 = which(cooks.distance(model3) < 4 / length(cooks.distance(model3)))
+lev2 = which(hatvalues(model3) > 2 * mean(hatvalues(model3)))
+outtotdata2 = outdata[-total2 - lev2,]
+model3new = lm(mean ~ variable_name * date, data = outtotdata2, subset = cooks.distance(model3) < 4 / length(cooks.distance(model3)))
+plot(model3new, which = c(2))
+```
+
+```{r}
+total3 = which(cooks.distance(modeli2) < 4 / length(cooks.distance(modeli2)))
+lev3 = which(hatvalues(modeli2) > 2 * mean(hatvalues(modeli2)))
+indoordata2 = indoortable[-total3 - lev3,]
+modeli2new = lm(log(mean + 1) ~ variable_name * date * treatment_name, data = indoordata2)
+plot(modeli2new, which = c(2))
+```
+
 
 ###Both
 
